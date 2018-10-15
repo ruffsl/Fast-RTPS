@@ -265,6 +265,10 @@ RTPSParticipantImpl::~RTPSParticipantImpl()
     m_security_manager.destroy();
 #endif
 
+    m_senderResourceList.clear();
+
+    m_network_Factory.CloseAllTransports();
+
     // Destruct message receivers
     for (auto& block : m_receiverResourcelist)
     {
@@ -274,7 +278,6 @@ RTPSParticipantImpl::~RTPSParticipantImpl()
 
     delete(this->mp_ResourceSemaphore);
     delete(this->mp_userParticipant);
-    m_senderResourceList.clear();
 
     delete(this->mp_event_thr);
     delete(this->mp_mutex);

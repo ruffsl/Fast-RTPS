@@ -54,11 +54,13 @@ class NetworkFactory
             }
 
         /**
-        * Allows registration of a transport dynamically. Only the transports built into FastRTPS
-        * are supported here (although it can be easily extended at NetworkFactory.cpp)
-        * @param descriptor Structure that defines all initial configuration for a given transport.
-        */
+         * Allows registration of a transport dynamically. Only the transports built into FastRTPS
+         * are supported here (although it can be easily extended at NetworkFactory.cpp)
+         * @param descriptor Structure that defines all initial configuration for a given transport.
+         */
         bool RegisterTransport(const TransportDescriptorInterface* descriptor);
+
+        void CloseAllTransports();
 
         /**
          * Walks over the list of transports, opening every possible channel that can send through
@@ -96,42 +98,42 @@ class NetworkFactory
 
         /**
          * For each transport, ask for their default output locators.
-         * */
+         */
         void GetDefaultOutputLocators(LocatorList_t &defaultLocators);
 
         /**
          * Adds locators to the metatraffic multicast list.
-         * */
+         */
         bool getDefaultMetatrafficMulticastLocators(LocatorList_t &locators, uint32_t metatraffic_multicast_port) const;
 
         /**
-        * Adds locators to the metatraffic unicast list.
-        * */
+         * Adds locators to the metatraffic unicast list.
+         */
         bool getDefaultMetatrafficUnicastLocators(LocatorList_t &locators, uint32_t metatraffic_unicast_port) const;
 
         /**
          * Fills the locator with the metatraffic multicast configuration.
-         * */
+         */
         bool fillMetatrafficMulticastLocator(Locator_t &locator, uint32_t metatraffic_multicast_port) const;
 
         /**
          * Fills the locator with the metatraffic unicast configuration.
-         * */
+         */
         bool fillMetatrafficUnicastLocator(Locator_t &locator, uint32_t metatraffic_unicast_port) const;
 
         /**
          * Configures the locator with the initial peer configuration.
-         * */
+         */
         bool configureInitialPeerLocator(Locator_t &locator, RTPSParticipantAttributes& m_att) const;
 
         /**
          * Adds locators to the default unicast configuration.
-         * */
+         */
         bool getDefaultUnicastLocators(LocatorList_t &locators, const RTPSParticipantAttributes& m_att) const;
 
         /**
          * Fills the locator with the default unicast configuration.
-         * */
+         */
         bool fillDefaultUnicastLocator(Locator_t &locator, const RTPSParticipantAttributes& m_att) const;
 
     private:

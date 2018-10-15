@@ -97,6 +97,11 @@ bool NetworkFactory::RegisterTransport(const TransportDescriptorInterface* descr
     return wasRegistered;
 }
 
+void NetworkFactory::CloseAllTransports()
+{
+    mRegisteredTransports.clear();
+}
+
 void NetworkFactory::NormalizeLocators(LocatorList_t& locators)
 {
     LocatorList_t normalizedLocators;
