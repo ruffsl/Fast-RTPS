@@ -58,7 +58,7 @@ bool HelloWorldPublisher::init()
     descriptor->sendBufferSize = 0;
     descriptor->receiveBufferSize = 0;
     //descriptor->set_WAN_address("127.0.0.1");
-    descriptor->add_listener_port(5100);
+    descriptor->add_listener_port(15100);
     PParam.rtps.userTransports.push_back(descriptor);
 
     mp_participant = Domain::createParticipant(PParam);

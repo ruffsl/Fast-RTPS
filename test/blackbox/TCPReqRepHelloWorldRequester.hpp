@@ -50,7 +50,7 @@ class TCPReqRepHelloWorldRequester
     {
         public:
             ReplyListener(TCPReqRepHelloWorldRequester &requester) : requester_(requester) {};
-            ~ReplyListener(){};
+            virtual ~ReplyListener(){};
             void onNewDataMessage(eprosima::fastrtps::Subscriber *sub);
             void onSubscriptionMatched(eprosima::fastrtps::Subscriber* /*sub*/, eprosima::fastrtps::rtps::MatchingInfo& info)
             {
@@ -70,7 +70,7 @@ class TCPReqRepHelloWorldRequester
         public:
 
             RequestListener(TCPReqRepHelloWorldRequester &requester) : requester_(requester){};
-            ~RequestListener(){};
+            virtual ~RequestListener(){};
             void onPublicationMatched(eprosima::fastrtps::Publisher* /*pub*/, eprosima::fastrtps::rtps::MatchingInfo &info)
             {
                 if (info.status == eprosima::fastrtps::rtps::MATCHED_MATCHING)

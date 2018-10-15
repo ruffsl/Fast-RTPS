@@ -72,14 +72,15 @@ TCPChannelResource::TCPChannelResource(TCPTransportInterface* parent, RTCPMessag
 
 TCPChannelResource::~TCPChannelResource()
 {
-    Clear();
-
+    Disable();
     if (mRTCPThread != nullptr)
     {
+            std::cout << "Join rtcp thread" << std::endl;
         mRTCPThread->join();
         delete(mRTCPThread);
         mRTCPThread = nullptr;
     }
+    Clear();
 }
 
 void TCPChannelResource::Disable()
@@ -164,6 +165,7 @@ void TCPChannelResource::Disconnect()
         {
             mSocket.cancel();
             mSocket.shutdown(asio::ip::tcp::socket::shutdown_both);
+std::cout << "DISCONNECT" << std::endl;
         }
         catch (std::exception&)
         {

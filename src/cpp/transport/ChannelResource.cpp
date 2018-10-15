@@ -56,9 +56,11 @@ void ChannelResource::Clear()
     mAlive = false;
     if (mThread != nullptr)
     {
+            std::cout << "Join listening thread" << std::endl;
         mThread->join();
         delete mThread;
         mThread = nullptr;
+            std::cout << "Joined!! listening thread" << std::endl;
     }
 }
 

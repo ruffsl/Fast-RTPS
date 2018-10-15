@@ -102,6 +102,7 @@ TCPv4Transport::TCPv4Transport()
 
 TCPv4Transport::~TCPv4Transport()
 {
+std::cout << "Inside TCPv4 destructor" << std::endl;
     Clean();
 }
 

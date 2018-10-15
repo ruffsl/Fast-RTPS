@@ -90,11 +90,13 @@ TCPTransportInterface::TCPTransportInterface()
 
 TCPTransportInterface::~TCPTransportInterface()
 {
+std::cout << "Inside TCPTransportInterface destructor" << std::endl;
 }
 
 void TCPTransportInterface::Clean()
 {
     std::vector<TCPChannelResource*> vDeletedSockets;
+    std::cout << "CLEAN-------------------------------" << std::endl;
 
     if (mCleanSocketsPoolTimer != nullptr)
     {
@@ -108,6 +110,7 @@ void TCPTransportInterface::Clean()
         std::unique_lock<std::recursive_mutex> scopedLock(mSocketsMapMutex);
         for (auto it = mSocketAcceptors.begin(); it != mSocketAcceptors.end(); ++it)
         {
+            std::cout << "Deleting acceptors" << std::endl;
             delete it->second;
         }
         mSocketAcceptors.clear();
@@ -146,11 +149,13 @@ void TCPTransportInterface::Clean()
         });
     }
 
+    std::cout << "Clean deleted sockets" << std::endl;
     CleanDeletedSockets();
 
     if (ioServiceThread)
     {
         mService.stop();
+        std::cout << "Join ioService thread" << std::endl;
         ioServiceThread->join();
     }
 
@@ -195,19 +200,22 @@ void TCPTransportInterface::CleanDeletedSockets()
     std::unique_lock<std::recursive_mutex> scopedLock(mDeletedSocketsPoolMutex);
     for (auto it = mDeletedSocketsPool.begin(); it != mDeletedSocketsPool.end(); ++it)
     {
+        /*
         std::thread* rtcpThread = (*it)->ReleaseRTCPThread();
         std::thread* thread = (*it)->ReleaseThread();
         if (rtcpThread != nullptr)
         {
+            std::cout << "Join rtcp thread" << std::endl;
             rtcpThread->join();
             delete(rtcpThread);
         }
         if (thread != nullptr)
         {
+            std::cout << "Join listening thread" << std::endl;
             thread->join();
             delete(thread);
         }
-
+        */
         delete(*it);
     }
     mDeletedSocketsPool.clear();
@@ -534,6 +542,15 @@ void TCPTransportInterface::CloseTCPSocket(TCPChannelResource *pChannelResource)
             newChannel->Connect();
         }
     }
+    else
+    {
+        std::unique_lock<std::recursive_mutex> scopedPoolLock(mDeletedSocketsPoolMutex);
+        auto it = std::find(mDeletedSocketsPool.begin(), mDeletedSocketsPool.end(), pChannelResource);
+        if (it == mDeletedSocketsPool.end())
+        {
+            mDeletedSocketsPool.emplace_back(pChannelResource);
+        } 
+    }
 }
 
 
@@ -792,6 +809,10 @@ bool TCPTransportInterface::Receive(TCPChannelResource *pChannelResource, octet*
                 CloseTCPSocket(pChannelResource);
                 success = false;
             }
+            catch (std::exception&)
+{
+	std::cout << "OTRA EXCEPTION NO CAPTURADA" << std::endl;
+}
         }
     }
     success = success && receiveBufferSize > 0;

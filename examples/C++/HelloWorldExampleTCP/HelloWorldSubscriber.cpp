@@ -44,7 +44,7 @@ bool HelloWorldSubscriber::init()
     Locator_t initial_peer_locator;
     initial_peer_locator.kind = kind;
     IPLocator::setIPv4(initial_peer_locator, "127.0.0.1");
-    initial_peer_locator.port = 5100;
+    initial_peer_locator.port = 15100;
     PParam.rtps.builtin.initialPeersList.push_back(initial_peer_locator); // Publisher's meta channel
 
     PParam.rtps.builtin.domainId = 0;
