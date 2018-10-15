@@ -34,19 +34,19 @@ namespace rtps {
  */
 class ReceiverResource : public TransportReceiverInterface
 {
-   //! Only NetworkFactory is ever allowed to construct a ReceiverResource from scratch.
-   //! In doing so, it guarantees the transport and channel are in a valid state for
-   //! this resource to exist.
+    //! Only NetworkFactory is ever allowed to construct a ReceiverResource from scratch.
+    //! In doing so, it guarantees the transport and channel are in a valid state for
+    //! this resource to exist.
     friend class NetworkFactory;
 
 public:
     /**
-    * Method called by the transport when receiving data.
-    * @param data Pointer to the received data.
-    * @param size Number of bytes received.
-    * @param localLocator Locator identifying the local endpoint.
-    * @param remoteLocator Locator identifying the remote endpoint.
-    */
+     * Method called by the transport when receiving data.
+     * @param data Pointer to the received data.
+     * @param size Number of bytes received.
+     * @param localLocator Locator identifying the local endpoint.
+     * @param remoteLocator Locator identifying the remote endpoint.
+     */
     virtual void OnDataReceived(const octet* data, const uint32_t size,
         const Locator_t& localLocator, const Locator_t& remoteLocator) override;
 
@@ -63,10 +63,15 @@ public:
     void RegisterReceiver(MessageReceiver* receiver);
 
     /**
-    * Unregister a MessageReceiver object to be called upon reception of data.
-    * @param receiver The message receiver to unregister.
-    */
+     * Unregister a MessageReceiver object to be called upon reception of data.
+     * @param receiver The message receiver to unregister.
+     */
     void UnregisterReceiver(MessageReceiver* receiver);
+
+    /**
+     * Close the associated input channel on the transport layer.
+     */
+    void Close();
 
     /**
      * Resources can only be transfered through move semantics. Copy, assignment, and

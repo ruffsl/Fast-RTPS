@@ -75,6 +75,16 @@ void ReceiverResource::UnregisterReceiver(MessageReceiver* rcv)
         receiver = nullptr;
 }
 
+void ReceiverResource::Close()
+{
+    if (mValid && Cleanup)
+    {
+        Cleanup();
+        Cleanup = nullptr;
+        mValid = false;
+    }
+}
+
 void ReceiverResource::OnDataReceived(const octet * data, const uint32_t size, 
     const Locator_t & localLocator, const Locator_t & remoteLocator)
 {
@@ -99,10 +109,7 @@ void ReceiverResource::OnDataReceived(const octet * data, const uint32_t size,
 
 ReceiverResource::~ReceiverResource()
 {
-    if (Cleanup)
-    {
-        Cleanup();
-    }
+    Close();
 }
 
 } // namespace rtps

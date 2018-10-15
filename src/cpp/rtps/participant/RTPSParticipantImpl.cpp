@@ -246,6 +246,7 @@ RTPSParticipantImpl::~RTPSParticipantImpl()
     for(auto& block : m_receiverResourcelist)
     {
         block.Receiver->UnregisterReceiver(block.mp_receiver);
+        block.Receiver->Close();
     }
 
     while(m_userReaderList.size() > 0)
