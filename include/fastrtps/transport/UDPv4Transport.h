@@ -25,7 +25,6 @@
 #include <memory>
 #include <map>
 #include <mutex>
-#include <thread>
 
 namespace eprosima{
 namespace fastrtps{
@@ -186,7 +185,6 @@ protected:
    uint32_t mReceiveBufferSize;
 
    asio::io_service mService;
-   std::unique_ptr<std::thread> ioServiceThread;
 
    mutable std::recursive_mutex mOutputMapMutex;
    mutable std::recursive_mutex mInputMapMutex;
@@ -200,7 +198,7 @@ protected:
                         {return (memcmp(&lhs, &rhs, sizeof(Locator_t)) < 0); } };
 
    //! For both modes, an input channel corresponds to a port.
-   std::map<uint32_t, std::vector<asio::ip::udp::socket> > mInputSockets;
+   std::map<uint32_t, asio::ip::udp::socket> mInputSockets;
 
    bool IsInterfaceAllowed(const asio::ip::address_v4& ip) const;
    std::vector<asio::ip::address_v4> mInterfaceWhiteList;

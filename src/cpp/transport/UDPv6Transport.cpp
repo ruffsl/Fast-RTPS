@@ -117,11 +117,6 @@ UDPv6TransportDescriptor::UDPv6TransportDescriptor(const UDPv6TransportDescripto
 
 UDPv6Transport::~UDPv6Transport()
 {
-  if(ioServiceThread)
-  {
-    mService.stop();
-    ioServiceThread->join();
-  }
 }
 
 bool UDPv6Transport::init()
@@ -180,13 +175,6 @@ bool UDPv6Transport::init()
     // TODO(Ricardo) Create an event that update this list.
     GetIP6s(currentInterfaces);
 
-    auto ioServiceFunction = [&]()
-        {
-          io_service::work work(mService);
-          mService.run();
-        };
-    ioServiceThread.reset(new std::thread(ioServiceFunction));
-
     return true;
 }
 
@@ -234,27 +222,25 @@ bool UDPv6Transport::OpenInputChannel(const Locator_t& locator)
     {
         // The multicast group will be joined silently, because we do not
         // want to return another resource.
-        auto& sockets = mInputSockets.at(locator.port);
-        for (auto& socket : sockets)
+        auto& socket = mInputSockets.at(locator.port);
+
+        std::vector<IPFinder::info_IP> locNames;
+        GetIP6sUniqueInterfaces(locNames);
+        for (const auto& infoIP : locNames)
         {
-          std::vector<IPFinder::info_IP> locNames;
-          GetIP6sUniqueInterfaces(locNames);
-          for (const auto& infoIP : locNames)
-          {
             auto ip = asio::ip::address_v6::from_string(infoIP.name);
             if (!mWhiteListInput || (mWhiteListInput && IsInterfaceAllowed(ip)))
             {
-              try
-              {
-                socket.set_option(ip::multicast::join_group(ip::address_v6::from_string(locator.to_IP6_string()), ip.scope_id()));
-              }
-              catch(std::system_error& ex)
-              {
-                (void)ex;
-                logWarning(RTPS_MSG_OUT, "Error joining multicast group on " << ip << ": "<< ex.what());
-              }
+                try
+                {
+                    socket.set_option(ip::multicast::join_group(ip::address_v6::from_string(locator.to_IP6_string()), ip.scope_id()));
+                }
+                catch (std::system_error& ex)
+                {
+                    (void)ex;
+                    logWarning(RTPS_MSG_OUT, "Error joining multicast group on " << ip << ": " << ex.what());
+                }
             }
-          }
         }
     }
 
@@ -419,11 +405,11 @@ bool UDPv6Transport::OpenAndBindInputSockets(const Locator_t& locator)
     try
     {
         if (mInterfaceWhiteList.empty() || !mWhiteListInput)
-            mInputSockets[port].push_back(OpenAndBindInputSocket(ip::address_v6::any(), port, is_multicast));
+            mInputSockets.emplace(port, OpenAndBindInputSocket(ip::address_v6::any(), port, is_multicast));
         else
         {
             if (is_multicast)
-                mInputSockets[port].push_back(OpenAndBindInputSocket(ip, port, is_multicast));
+                mInputSockets.emplace(port, OpenAndBindInputSocket(ip, port, is_multicast));
             else
             {
                 std::vector<IPFinder::info_IP> locnames;
@@ -432,7 +418,7 @@ bool UDPv6Transport::OpenAndBindInputSockets(const Locator_t& locator)
                 {
                     auto locIP = asio::ip::address_v6::from_string(infoIP.name);
                     if (IsInterfaceAllowed(locIP))
-                      mInputSockets[port].push_back(OpenAndBindInputSocket(locIP, port, is_multicast));
+                      mInputSockets.emplace(port, OpenAndBindInputSocket(locIP, port, is_multicast));
                 }
             }
         }
@@ -541,59 +527,38 @@ static Locator_t EndpointToLocator(ip::udp::endpoint& endpoint)
 }
 
 bool UDPv6Transport::Receive(octet* receiveBuffer, uint32_t receiveBufferCapacity, uint32_t& receiveBufferSize,
-        const Locator_t& localLocator, Locator_t& remoteLocator)
+    const Locator_t& localLocator, Locator_t& remoteLocator)
 {
-
     if (!IsInputChannelOpen(localLocator))
         return false;
 
-    bool success = false;
     ip::udp::endpoint senderEndpoint;
-    Semaphore receiveSemaphore;
+    ip::udp::socket* socket = nullptr;
 
-    auto handler = [&receiveBufferSize, &success, &receiveSemaphore]
-        (const asio::error_code& error, std::size_t bytes_transferred)
+    { // lock scope
+        std::unique_lock<std::recursive_mutex> scopedLock(mInputMapMutex);
+
+        socket = &mInputSockets.at(localLocator.port);
+    }
+
+    if (socket != nullptr)
+    {
+        size_t bytes = socket->receive_from(asio::buffer(receiveBuffer, receiveBufferCapacity), senderEndpoint);
+
+        receiveBufferSize = static_cast<uint32_t>(bytes);
+
+        if (receiveBufferSize > 0)
         {
-          if(error)
-          {
-            logError(RTPS_MSG_IN, "Error while listening to socket: " <<
-                     error.category().name() << "(" <<  error.value() << ")");
-            receiveBufferSize = 0;
-          }
-          else
-          {
-            receiveBufferSize = static_cast<uint32_t>(bytes_transferred);
-            success = (receiveBufferSize > 0)? true: false;
-          }
-          receiveSemaphore.post();
-        };
-    {
-      // lock scope
-      std::unique_lock<std::recursive_mutex> scopedLock(mInputMapMutex);
-      if (!IsInputChannelOpen(localLocator))
-      {
-        logError(RTPS_MSG_IN, "Local locator " << localLocator << " is not an open input channel");
-        return false;
-      }
-      auto& sockets = mInputSockets.at(localLocator.port);
-      for (auto& socket : sockets)
-      {
-        socket.async_receive_from(asio::buffer(receiveBuffer, receiveBufferCapacity), senderEndpoint, handler);
-      }
+            if (receiveBufferSize == 13 && memcmp(receiveBuffer, "EPRORTPSCLOSE", 13) == 0)
+            {
+                return false;
+            }
+
+            remoteLocator = EndpointToLocator(senderEndpoint);
+        }
     }
-    receiveSemaphore.wait();
-    if (success)
-    {
-      if(receiveBufferSize == 13 && memcmp(receiveBuffer, "EPRORTPSCLOSE", 13) == 0)
-      {
-        success = false;
-      }
-      else
-      {
-        remoteLocator = EndpointToLocator(senderEndpoint);
-      }
-    }
-    return success;
+
+    return (receiveBufferSize > 0);
 }
 
 bool UDPv6Transport::SendThroughSocket(const octet* sendBuffer,

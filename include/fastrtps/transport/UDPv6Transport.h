@@ -16,7 +16,6 @@
 #define UDPV6_TRANSPORT_H
 
 #include <asio.hpp>
-#include <thread>
 
 #include "TransportInterface.h"
 #include "UDPv6TransportDescriptor.h"
@@ -189,7 +188,6 @@ private:
 
    // For UDPv6, the notion of channel corresponds to a port + direction tuple.
    asio::io_service mService;
-   std::unique_ptr<std::thread> ioServiceThread;
 
    mutable std::recursive_mutex mOutputMapMutex;
    mutable std::recursive_mutex mInputMapMutex;
@@ -203,7 +201,7 @@ private:
    struct LocatorCompare{ bool operator()(const Locator_t& lhs, const Locator_t& rhs) const
                         {return (memcmp(&lhs, &rhs, sizeof(Locator_t)) < 0); } };
    //! For both modes, an input channel corresponds to a port.
-   std::map<uint32_t, std::vector<asio::ip::udp::socket> > mInputSockets;
+   std::map<uint32_t, asio::ip::udp::socket> mInputSockets;
 
    bool IsInterfaceAllowed(const asio::ip::address_v6& ip) const;
    std::vector<asio::ip::address_v6> mInterfaceWhiteList;

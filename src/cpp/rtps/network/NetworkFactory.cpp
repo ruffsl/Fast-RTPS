@@ -163,20 +163,22 @@ void NetworkFactory::NormalizeLocators(LocatorList_t& locators)
 void NetworkFactory::FilterLocators(LocatorList_t& locators)
 {
     LocatorList_t filteredLocators;
-
-    std::for_each(locators.begin(), locators.end(), [&](Locator_t& loc) {
-            bool allowed = false;
-            for (auto& transport : mRegisteredTransports)
-            {
+    std::for_each(locators.begin(), locators.end(), [&](Locator_t& loc)
+    {
+        bool allowed = false;
+        for (auto& transport : mRegisteredTransports)
+        {
             if (transport->IsLocatorAllowed(loc))
             {
-            allowed = true;
+                allowed = true;
             }
-            }
+        }
 
-            if (allowed)
+        if (allowed)
+        {
             filteredLocators.push_back(loc);
-            });
+        }
+    });
 
     locators.swap(filteredLocators);
 }
