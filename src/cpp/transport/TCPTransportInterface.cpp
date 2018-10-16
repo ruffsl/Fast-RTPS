@@ -90,13 +90,13 @@ TCPTransportInterface::TCPTransportInterface()
 
 TCPTransportInterface::~TCPTransportInterface()
 {
-std::cout << "Inside TCPTransportInterface destructor" << std::endl;
+    // Child classes must call Clean().
+    std::cout << "(" << this << ") Destructor padre" << std::endl;
 }
 
 void TCPTransportInterface::Clean()
 {
     std::vector<TCPChannelResource*> vDeletedSockets;
-    std::cout << "CLEAN-------------------------------" << std::endl;
 
     if (mCleanSocketsPoolTimer != nullptr)
     {
@@ -110,7 +110,6 @@ void TCPTransportInterface::Clean()
         std::unique_lock<std::recursive_mutex> scopedLock(mSocketsMapMutex);
         for (auto it = mSocketAcceptors.begin(); it != mSocketAcceptors.end(); ++it)
         {
-            std::cout << "Deleting acceptors" << std::endl;
             delete it->second;
         }
         mSocketAcceptors.clear();
@@ -149,17 +148,19 @@ void TCPTransportInterface::Clean()
         });
     }
 
-    std::cout << "Clean deleted sockets" << std::endl;
+    std::cout << "(" << this << ") <CleanDeletedSockets>" << std::endl;
     CleanDeletedSockets();
+    std::cout << "(" << this << ") </CleanDeletedSocket> ---" << std::endl;
 
     if (ioServiceThread)
     {
         mService.stop();
-        std::cout << "Join ioService thread" << std::endl;
         ioServiceThread->join();
+        ioServiceThread.reset();
     }
 
     delete mRTCPMessageManager;
+    mRTCPMessageManager = nullptr;
 }
 
 TCPChannelResource* TCPTransportInterface::BindSocket(const Locator_t& locator, TCPChannelResource *pChannelResource)
@@ -197,28 +198,29 @@ TCPChannelResource* TCPTransportInterface::BindSocket(const Locator_t& locator, 
 
 void TCPTransportInterface::CleanDeletedSockets()
 {
-    std::unique_lock<std::recursive_mutex> scopedLock(mDeletedSocketsPoolMutex);
-    for (auto it = mDeletedSocketsPool.begin(); it != mDeletedSocketsPool.end(); ++it)
+    std::vector<TCPChannelResource*> toDel;
+
     {
-        /*
-        std::thread* rtcpThread = (*it)->ReleaseRTCPThread();
-        std::thread* thread = (*it)->ReleaseThread();
-        if (rtcpThread != nullptr)
-        {
-            std::cout << "Join rtcp thread" << std::endl;
-            rtcpThread->join();
-            delete(rtcpThread);
-        }
-        if (thread != nullptr)
-        {
-            std::cout << "Join listening thread" << std::endl;
-            thread->join();
-            delete(thread);
-        }
-        */
+        std::unique_lock<std::recursive_mutex> scopedLock(mDeletedSocketsPoolMutex);
+        toDel.insert(toDel.end(), mDeletedSocketsPool.begin(), mDeletedSocketsPool.end());
+    }
+
+    std::cout << "(" << this << ") <DELETE>" << std::endl;
+    for (auto it = toDel.begin(); it != toDel.end(); ++it)
+    {
+        std::cout << "(" << this << ")     Deleting " << (*it) << " - " << (*it)->IsAlive() << std::endl;
         delete(*it);
     }
-    mDeletedSocketsPool.clear();
+    std::cout << "(" << this << ") </DELETE>" << std::endl;
+
+    {
+        std::unique_lock<std::recursive_mutex> scopedLock(mDeletedSocketsPoolMutex);
+        for (auto it = toDel.begin(); it != toDel.end(); ++it)
+        {
+            auto mIt = std::find(mDeletedSocketsPool.begin(), mDeletedSocketsPool.end(), *it);
+            mDeletedSocketsPool.erase(mIt);
+        }
+    }
 }
 
 void TCPTransportInterface::DeleteUnboundSocket(TCPChannelResource *channelResource)
@@ -538,6 +540,7 @@ void TCPTransportInterface::CloseTCPSocket(TCPChannelResource *pChannelResource)
 
         if (newChannel != nullptr)
         {
+            //std::cout << "(" << this << ") CloseTCP and retry" << std::endl;
             mChannelResources[physicalLocator] = newChannel;
             newChannel->Connect();
         }
@@ -549,7 +552,7 @@ void TCPTransportInterface::CloseTCPSocket(TCPChannelResource *pChannelResource)
         if (it == mDeletedSocketsPool.end())
         {
             mDeletedSocketsPool.emplace_back(pChannelResource);
-        } 
+        }
     }
 }
 
@@ -616,11 +619,13 @@ bool TCPTransportInterface::OpenInputChannel(const Locator_t& locator, Transport
 
 void TCPTransportInterface::performRTPCManagementThread(TCPChannelResource *pChannelResource)
 {
+    uint32_t keep_alive_frequency_ms = GetConfiguration()->keep_alive_frequency_ms;
+    uint32_t keep_alive_timeout_ms = GetConfiguration()->keep_alive_timeout_ms;
     std::chrono::time_point<std::chrono::system_clock> time_now = std::chrono::system_clock::now();
     std::chrono::time_point<std::chrono::system_clock> next_time = time_now +
-        std::chrono::milliseconds(GetConfiguration()->keep_alive_frequency_ms);
+        std::chrono::milliseconds(keep_alive_frequency_ms);
     std::chrono::time_point<std::chrono::system_clock> timeout_time =
-        time_now + std::chrono::milliseconds(GetConfiguration()->keep_alive_timeout_ms);
+        time_now + std::chrono::milliseconds(keep_alive_timeout_ms);
 
     logInfo(RTCP, "START performRTPCManagementThread " << IPLocator::toIPv4string(pChannelResource->GetLocator()) \
             << ":" << IPLocator::getPhysicalPort(pChannelResource->GetLocator()) << " (" \
@@ -634,7 +639,7 @@ void TCPTransportInterface::performRTPCManagementThread(TCPChannelResource *pCha
         if (pChannelResource->IsConnectionEstablished())
         {
             // KeepAlive
-            if (GetConfiguration()->keep_alive_frequency_ms > 0 && GetConfiguration()->keep_alive_timeout_ms > 0)
+            if (keep_alive_frequency_ms > 0 && keep_alive_timeout_ms > 0)
             {
                 time_now = std::chrono::system_clock::now();
 
@@ -643,8 +648,8 @@ void TCPTransportInterface::performRTPCManagementThread(TCPChannelResource *pCha
                 {
                     mRTCPMessageManager->sendKeepAliveRequest(pChannelResource);
                     pChannelResource->mWaitingForKeepAlive = true;
-                    next_time = time_now + std::chrono::milliseconds(GetConfiguration()->keep_alive_frequency_ms);
-                    timeout_time = time_now + std::chrono::milliseconds(GetConfiguration()->keep_alive_timeout_ms);
+                    next_time = time_now + std::chrono::milliseconds(keep_alive_frequency_ms);
+                    timeout_time = time_now + std::chrono::milliseconds(keep_alive_timeout_ms);
                 }
                 else if (pChannelResource->mWaitingForKeepAlive && time_now >= timeout_time)
                 {
@@ -662,12 +667,13 @@ void TCPTransportInterface::performRTPCManagementThread(TCPChannelResource *pCha
 void TCPTransportInterface::performListenOperation(TCPChannelResource *pChannelResource)
 {
     Locator_t remoteLocator;
+    Locator_t localLocator = pChannelResource->GetLocator();
     uint16_t logicalPort(0);
+    auto& msg = pChannelResource->GetMessageBuffer();
 
     while (pChannelResource->IsAlive())
     {
         // Blocking receive.
-        auto& msg = pChannelResource->GetMessageBuffer();
         CDRMessage::initCDRMsg(&msg);
         if (!Receive(pChannelResource, msg.buffer, msg.max_size, msg.length, remoteLocator))
         {
@@ -682,7 +688,7 @@ void TCPTransportInterface::performListenOperation(TCPChannelResource *pChannelR
         if (it != mReceiverResources.end())
         {
             scopedLock.unlock();
-            it->second->OnDataReceived(msg.buffer, msg.length, pChannelResource->GetLocator(), remoteLocator);
+            it->second->OnDataReceived(msg.buffer, msg.length, localLocator, remoteLocator);
         }
         else
         {
@@ -690,7 +696,7 @@ void TCPTransportInterface::performListenOperation(TCPChannelResource *pChannelR
         }
     }
 
-    logInfo(RTCP, "End PerformListenOperation " << pChannelResource->GetLocator());
+    logInfo(RTCP, "End PerformListenOperation " << localLocator);
 }
 
 bool TCPTransportInterface::ReadBody(octet* receiveBuffer, uint32_t receiveBufferCapacity,
@@ -809,10 +815,6 @@ bool TCPTransportInterface::Receive(TCPChannelResource *pChannelResource, octet*
                 CloseTCPSocket(pChannelResource);
                 success = false;
             }
-            catch (std::exception&)
-{
-	std::cout << "OTRA EXCEPTION NO CAPTURADA" << std::endl;
-}
         }
     }
     success = success && receiveBufferSize > 0;
@@ -1040,6 +1042,7 @@ void TCPTransportInterface::SocketAccepted(TCPAcceptor* acceptor, const asio::er
         std::unique_lock<std::recursive_mutex> scopedLock(mSocketsMapMutex);
         if (mSocketAcceptors.find(IPLocator::getPhysicalPort(acceptor->mLocator)) != mSocketAcceptors.end())
         {
+            std::cout << "(" << this << ") Acceptor..." << std::endl;
 #if defined(ASIO_HAS_MOVE)
             eProsimaTCPSocket unicastSocket = eProsimaTCPSocket(std::move(acceptor->mSocket));
 #else
@@ -1101,7 +1104,7 @@ void TCPTransportInterface::SocketConnected(Locator_t locator, const asio::error
         outputSocket = it->second;
     }
 
-    if(outputSocket != nullptr)
+    if(outputSocket != nullptr && outputSocket->IsAlive())
     {
         if(error.value() == 0)
         {
@@ -1126,6 +1129,10 @@ void TCPTransportInterface::SocketConnected(Locator_t locator, const asio::error
         }
         else
         {
+            if (error.value() != error::connection_refused)
+            {
+                logInfo(RTCP_ASIO, "Error on SocketConnected: " << error.message());
+            }
             CloseTCPSocket(outputSocket);
         }
     }

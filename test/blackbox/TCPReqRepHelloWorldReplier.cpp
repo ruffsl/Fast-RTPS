@@ -54,7 +54,6 @@ TCPReqRepHelloWorldReplier::TCPReqRepHelloWorldReplier(): request_listener_(*thi
 
 TCPReqRepHelloWorldReplier::~TCPReqRepHelloWorldReplier()
 {
-std::cout << "DEBUG: Inside replier destructor" << std::endl;
     if(participant_ != nullptr)
         Domain::removeParticipant(participant_);
 }

@@ -102,7 +102,7 @@ TCPv6Transport::TCPv6Transport()
 
 TCPv6Transport::~TCPv6Transport()
 {
-    Clean();
+    Clean(); // Must be in child classes because ChannelResources may call virtual methods.
 }
 
 void TCPv6Transport::AddDefaultOutputLocator(LocatorList_t& /*defaultList*/)

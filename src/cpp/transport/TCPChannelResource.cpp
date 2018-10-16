@@ -75,12 +75,13 @@ TCPChannelResource::~TCPChannelResource()
     Disable();
     if (mRTCPThread != nullptr)
     {
-            std::cout << "Join rtcp thread" << std::endl;
         mRTCPThread->join();
         delete(mRTCPThread);
         mRTCPThread = nullptr;
     }
+    std::cout << "(" << mParent << ") Clear" << std::endl;
     Clear();
+    std::cout << "(" << mParent << ") Last" << std::endl;
 }
 
 void TCPChannelResource::Disable()
@@ -159,20 +160,17 @@ void TCPChannelResource::CopyPendingPortsFrom(TCPChannelResource* from)
 
 void TCPChannelResource::Disconnect()
 {
-    if (ChangeStatus(eConnectionStatus::eDisconnected))
+    ChangeStatus(eConnectionStatus::eDisconnected);
+    try
     {
-        try
-        {
-            mSocket.cancel();
-            mSocket.shutdown(asio::ip::tcp::socket::shutdown_both);
-std::cout << "DISCONNECT" << std::endl;
-        }
-        catch (std::exception&)
-        {
-            // Cancel & shutdown throws exceptions if the socket has been closed ( Test_TCPv4Transport )
-        }
-        mSocket.close();
+        mSocket.cancel();
+        mSocket.shutdown(asio::ip::tcp::socket::shutdown_both);
     }
+    catch (std::exception&)
+    {
+        // Cancel & shutdown throws exceptions if the socket has been closed ( Test_TCPv4Transport )
+    }
+    mSocket.close();
 }
 
 bool TCPChannelResource::IsLogicalPortOpened(uint16_t port)

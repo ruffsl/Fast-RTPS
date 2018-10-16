@@ -165,8 +165,8 @@ class BlackboxEnvironment : public ::testing::Environment
         void SetUp()
         {
             global_port = get_port();
-            Log::SetVerbosity(Log::Info);
-            Log::SetCategoryFilter(std::regex("(RTCP)"));
+            //Log::SetVerbosity(Log::Info);
+            //Log::SetCategoryFilter(std::regex("(RTCP)"));
         }
 
         void TearDown()
@@ -5305,38 +5305,34 @@ BLACKBOXTEST(BlackBox, ReqRepVolatileHelloworldRequesterCheckWriteParams)
 // TCP and Domain management with logical ports tests
 BLACKBOXTEST(BlackBox, TCPDomainHelloWorld_P0_P1_D0_D0)
 {
-{
     TCPReqRepHelloWorldRequester requester;
-    TCPReqRepHelloWorldReplier* replier = new TCPReqRepHelloWorldReplier;
+    TCPReqRepHelloWorldReplier replier;
     const uint16_t nmsgs = 5;
 
     requester.init(0, 0, global_port);
 
     ASSERT_TRUE(requester.isInitialized());
 
-    replier->init(1, 0, global_port);
+    replier.init(1, 0, global_port);
 
-    ASSERT_TRUE(replier->isInitialized());
+    ASSERT_TRUE(replier.isInitialized());
 
     // Wait for discovery.
     requester.waitDiscovery();
-    replier->waitDiscovery();
+    replier.waitDiscovery();
 
     ASSERT_TRUE(requester.isMatched());
-        std::cout << "Requester matched" << std::endl;
-    ASSERT_TRUE(replier->isMatched());
-        std::cout << "Replier matched" << std::endl;
+    std::cout << "Requester matched" << std::endl;
+    ASSERT_TRUE(replier.isMatched());
+    std::cout << "Replier matched" << std::endl;
 
     for(uint16_t count = 0; count < nmsgs; ++count)
     {
-        std::cout << "DEBUG: Sending Shit" << std::endl;
+        std::cout << "Sending message " << count + 1 << std::endl;
         requester.send(count);
         requester.block();
-        std::cout << "DEBUG: Shit received" << std::endl;
+        std::cout << "Message " << count + 1 << " received" << std::endl;
     }
-std::cout << "DEBUG: Calling replier destructor" << std::endl;
-    delete replier;
-}
 }
 
 BLACKBOXTEST(BlackBox, TCPDomainHelloWorld_P0_P1_D0_D1)

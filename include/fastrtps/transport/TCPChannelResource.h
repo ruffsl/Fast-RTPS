@@ -198,7 +198,8 @@ protected:
             mNegotiationCondition.notify_all();
 	        return true;
 	    }
-	    return false;
+        mNegotiationCondition.notify_all(); // Maybe we are dying and need to be notified anyway
+        return false;
     }
 
     void AddLogicalPortResponse(const TCPTransactionId &id, bool success);

@@ -102,8 +102,8 @@ TCPv4Transport::TCPv4Transport()
 
 TCPv4Transport::~TCPv4Transport()
 {
-std::cout << "Inside TCPv4 destructor" << std::endl;
-    Clean();
+    std::cout << "(" << this << ") Destructor " << std::endl;
+    Clean(); // Must be in child classes because ChannelResources may call virtual methods.
 }
 
 void TCPv4Transport::AddDefaultOutputLocator(LocatorList_t&)

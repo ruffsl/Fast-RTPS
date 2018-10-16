@@ -56,11 +56,13 @@ void ChannelResource::Clear()
     mAlive = false;
     if (mThread != nullptr)
     {
-            std::cout << "Join listening thread" << std::endl;
+        std::cout << "Clear join" << std::endl;
+#if !defined(__APPLE__)
         mThread->join();
+ #endif
+        std::cout << "Clear joined" << std::endl;
         delete mThread;
         mThread = nullptr;
-            std::cout << "Joined!! listening thread" << std::endl;
     }
 }
 
