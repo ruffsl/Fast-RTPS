@@ -31,6 +31,11 @@
 
 #include <openssl/opensslv.h>
 
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+
+
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 #define IS_OPENSSL_1_1 1
 #define OPENSSL_CONST const
@@ -50,6 +55,49 @@
 #define S2(x) S1(x)
 #define LOCATION " (" __FILE__ ":" S2(__LINE__) ")"
 #define _SecurityException_(str) SecurityException(std::string(str) + LOCATION)
+
+
+
+namespace {
+struct BIOFreeAll { void operator()(BIO* p) { BIO_free_all(p); } };
+}
+
+std::string Base64Encode(const std::vector<unsigned char>& binary)
+{
+    std::unique_ptr<BIO,BIOFreeAll> b64(BIO_new(BIO_f_base64()));
+    BIO_set_flags(b64.get(), BIO_FLAGS_BASE64_NO_NL);
+    BIO* sink = BIO_new(BIO_s_mem());
+    BIO_push(b64.get(), sink);
+    BIO_write(b64.get(), binary.data(), binary.size());
+    BIO_flush(b64.get());
+    const char* encoded;
+    const long len = BIO_get_mem_data(sink, &encoded);
+    return std::string(encoded, len);
+}
+
+// Assumes no newlines or extra characters in encoded string
+std::vector<unsigned char> Base64Decode(const char* encoded)
+{
+    std::unique_ptr<BIO,BIOFreeAll> b64(BIO_new(BIO_f_base64()));
+    BIO_set_flags(b64.get(), BIO_FLAGS_BASE64_NO_NL);
+    BIO* source = BIO_new_mem_buf(encoded, -1); // read-only source
+    BIO_push(b64.get(), source);
+    const int maxlen = strlen(encoded) / 4 * 3 + 1;
+    std::vector<unsigned char> decoded(maxlen);
+    const int len = BIO_read(b64.get(), decoded.data(), maxlen);
+    decoded.resize(len);
+    return decoded;
+}
+
+const std::string getDigest(const std::string& key, const std::string& data)
+{
+    unsigned char* digest;
+    unsigned int digest_len;
+    digest = HMAC(EVP_sha256(), key.c_str(), key.length(), (unsigned char*)data.c_str(), data.length(), NULL, &digest_len);
+    const char* msg = (const char*)digest;
+    const std::vector<unsigned char> binary(msg, msg+digest_len);
+    return Base64Encode(binary);
+}
 
 using namespace eprosima::fastrtps;
 using namespace eprosima::fastrtps::rtps;
@@ -100,16 +148,27 @@ static const EndpointSecurityAttributes* is_topic_in_sec_attributes(const std::s
     return returned_value;
 }
 
-static bool is_topic_in_criterias(const std::string& topic_name, const std::vector<Criteria>& criterias)
+static bool is_topic_in_criterias(const std::string& subject_name, const std::string& topic_name, const std::vector<Criteria>& criterias)
 {
     bool returned_value = false;
+    std::string encoded;
 
     for(auto criteria_it = criterias.begin(); !returned_value &&
             criteria_it != criterias.end(); ++criteria_it)
     {
         for(auto topic : (*criteria_it).topics)
         {
-            if(StringMatching::matchString(topic.c_str(), topic_name.c_str()))
+//            if(StringMatching::matchString(topic.c_str(), topic_name.c_str()))
+//            {
+//                returned_value = true;
+//                break;
+//            }
+            if(topic_name == "rq/talker/describe_parametersRequest")
+            {
+                (void) 0;
+            }
+            encoded = getDigest(subject_name, topic_name);
+            if(topic == encoded)
             {
                 returned_value = true;
                 break;
@@ -1043,7 +1102,7 @@ bool Permissions::check_create_datawriter(const PermissionsHandle& local_handle,
     // Search topic
     for(auto rule : lah->grant.rules)
     {
-        if(is_topic_in_criterias(topic_name, rule.publishes))
+        if(is_topic_in_criterias(lah->grant.subject_name, topic_name, rule.publishes))
         {
             if(rule.allow)
             {
@@ -1118,7 +1177,7 @@ bool Permissions::check_create_datareader(const PermissionsHandle& local_handle,
 
     for(auto rule : lah->grant.rules)
     {
-        if(is_topic_in_criterias(topic_name, rule.subscribes))
+        if(is_topic_in_criterias(lah->grant.subject_name, topic_name, rule.subscribes))
         {
             if(rule.allow)
             {
@@ -1196,7 +1255,7 @@ bool Permissions::check_remote_datawriter(const PermissionsHandle& remote_handle
     {
         if(is_domain_in_set(domain_id, rule.domains))
         {
-            if(is_topic_in_criterias(publication_data.topicName(), rule.publishes))
+            if(is_topic_in_criterias(rah->grant.subject_name, publication_data.topicName(), rule.publishes))
             {
                 if(rule.allow)
                 {
@@ -1255,7 +1314,7 @@ bool Permissions::check_remote_datareader(const PermissionsHandle& remote_handle
     {
         if(is_domain_in_set(domain_id, rule.domains))
         {
-            if(is_topic_in_criterias(subscription_data.topicName(), rule.subscribes))
+            if(is_topic_in_criterias(rah->grant.subject_name, subscription_data.topicName(), rule.subscribes))
             {
                 if(rule.allow)
                 {
